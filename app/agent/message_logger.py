@@ -18,7 +18,7 @@ def classify_message(msg: Any) -> list[dict]:
 
     if msg_type == "AssistantMessage":
         for block in getattr(msg, "content", []):
-            block_type = getattr(block, "type", None)
+            block_type = _block_type(block)
             if block_type == "text":
                 events.append({"event": "agent_text", "data": {"text": block.text}})
             elif block_type == "tool_use":
@@ -47,9 +47,17 @@ def classify_message(msg: Any) -> list[dict]:
 
     elif msg_type == "UserMessage":
         for block in getattr(msg, "content", []):
-            block_type = getattr(block, "type", None)
+            block_type = _block_type(block)
             if block_type == "tool_result":
-                events.append({"event": "tool_result", "data": {"tool_use_id": getattr(block, "tool_use_id", "")}})
+                events.append(
+                    {
+                        "event": "tool_result",
+                        "data": {
+                            "tool_use_id": getattr(block, "tool_use_id", ""),
+                            "tool": getattr(block, "name", None),
+                        },
+                    }
+                )
 
     elif msg_type == "ResultMessage":
         events.append(
@@ -101,3 +109,19 @@ def _safe_serialize(obj: Any) -> Any:
     if isinstance(obj, str) and len(obj) > 500:
         return obj[:500] + "... (truncated)"
     return obj
+
+
+def _block_type(block: Any) -> str | None:
+    """Infer block type robustly across SDK versions."""
+    block_type = getattr(block, "type", None)
+    if isinstance(block_type, str):
+        return block_type
+
+    cls_name = type(block).__name__
+    if cls_name == "TextBlock" or hasattr(block, "text"):
+        return "text"
+    if cls_name == "ToolUseBlock" or (hasattr(block, "name") and hasattr(block, "input")):
+        return "tool_use"
+    if cls_name == "ToolResultBlock" or hasattr(block, "tool_use_id"):
+        return "tool_result"
+    return None

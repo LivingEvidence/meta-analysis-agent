@@ -140,27 +140,39 @@ const App = {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-            let currentEvent = null;
+            let eventName = null;
+            let dataLines = [];
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
                 buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
+                const lines = buffer.split(/\r?\n/);
                 buffer = lines.pop(); // Keep incomplete line
 
                 for (const line of lines) {
-                    if (line.startsWith('event: ')) {
-                        currentEvent = line.slice(7).trim();
-                    } else if (line.startsWith('data: ') && currentEvent) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-                            this._handleSSEEvent(currentEvent, data);
-                        } catch (parseErr) {
-                            console.warn('Failed to parse SSE data:', line);
+                    if (line === '') {
+                        if (!eventName) {
+                            dataLines = [];
+                            continue;
                         }
-                        currentEvent = null;
+
+                        try {
+                            const data = JSON.parse(dataLines.join('\n'));
+                            this._handleSSEEvent(eventName, data);
+                        } catch (parseErr) {
+                            console.warn('Failed to parse SSE data:', dataLines.join('\n'));
+                        }
+                        eventName = null;
+                        dataLines = [];
+                        continue;
+                    }
+
+                    if (line.startsWith('event: ')) {
+                        eventName = line.slice(7).trim();
+                    } else if (line.startsWith('data: ')) {
+                        dataLines.push(line.slice(6));
                     }
                 }
             }
@@ -224,7 +236,11 @@ const App = {
                 break;
 
             case 'result':
-                // Agent run completed
+                Components.removeLoadingDots();
+                if (data.result) {
+                    Components.appendToAgentMessage(data.result);
+                    Components.finalizeAgentMessage();
+                }
                 if (data.cost_usd != null) {
                     console.log(`Agent completed: ${data.turns} turns, $${data.cost_usd?.toFixed(4)}, ${data.duration_ms}ms`);
                 }

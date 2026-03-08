@@ -11,13 +11,50 @@ from typing import Any, Callable, Coroutine
 from app.agent.message_logger import classify_message, log_message
 from app.agent.prompts import MAIN_SYSTEM_PROMPT
 from app.agent.subagents import get_subagent_definitions
-from app.agent.tools import build_tool_definitions, handle_tool_call
+from app.agent.tools import (
+    build_sdk_mcp_server,
+    build_tool_definitions,
+    get_run_analysis_results,
+    init_run_result_store,
+)
 from app.config import settings
 
 log = logging.getLogger(__name__)
 
 # Type alias for the SSE event callback
 EventCallback = Callable[[dict], Coroutine[Any, Any, None]]
+
+
+def _build_claude_env() -> dict[str, str]:
+    """Build environment variables for the Claude CLI subprocess."""
+    env: dict[str, str] = {}
+
+    if settings.ANTHROPIC_API_KEY:
+        env["ANTHROPIC_API_KEY"] = settings.ANTHROPIC_API_KEY
+
+    if settings.CLAUDE_CODE_USE_FOUNDRY:
+        env["CLAUDE_CODE_USE_FOUNDRY"] = "1"
+
+    if settings.ANTHROPIC_FOUNDRY_API_KEY:
+        env["ANTHROPIC_FOUNDRY_API_KEY"] = settings.ANTHROPIC_FOUNDRY_API_KEY
+
+    if settings.ANTHROPIC_FOUNDRY_RESOURCE:
+        env["ANTHROPIC_FOUNDRY_RESOURCE"] = settings.ANTHROPIC_FOUNDRY_RESOURCE
+        env.setdefault(
+            "ANTHROPIC_BASE_URL",
+            f"https://{settings.ANTHROPIC_FOUNDRY_RESOURCE}.services.ai.azure.com",
+        )
+
+    if settings.ANTHROPIC_DEFAULT_SONNET_MODEL:
+        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = settings.ANTHROPIC_DEFAULT_SONNET_MODEL
+
+    if settings.ANTHROPIC_DEFAULT_HAIKU_MODEL:
+        env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = settings.ANTHROPIC_DEFAULT_HAIKU_MODEL
+
+    if settings.ANTHROPIC_DEFAULT_OPUS_MODEL:
+        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = settings.ANTHROPIC_DEFAULT_OPUS_MODEL
+
+    return env
 
 
 async def run_agent(
@@ -46,9 +83,7 @@ async def run_agent(
             AssistantMessage,
             ResultMessage,
             TextBlock,
-            ToolResultBlock,
             ToolUseBlock,
-            UserMessage,
         )
     except ImportError:
         log.warning("claude_agent_sdk not installed, using mock agent")
@@ -56,7 +91,9 @@ async def run_agent(
         return
 
     # Build tools and subagents
+    init_run_result_store(session_id, request_id)
     tool_defs = build_tool_definitions(session_id, request_id, file_path)
+    mcp_server = build_sdk_mcp_server(session_id, request_id, file_path)
     subagent_defs = get_subagent_definitions(session_id, request_id)
 
     # Map subagent dicts to AgentDefinition instances
@@ -75,39 +112,24 @@ async def run_agent(
     options = ClaudeAgentOptions(
         system_prompt=MAIN_SYSTEM_PROMPT,
         allowed_tools=["Agent"] + [t["name"] for t in tool_defs],
-        tools=tool_defs,
+        mcp_servers={"meta_analysis": mcp_server},
         agents=agents,
         max_turns=settings.MAX_AGENT_TURNS,
         cwd=str((settings.RUNS_DIR / session_id / request_id).resolve()),
+        env=_build_claude_env(),
+        permission_mode="bypassPermissions",
     )
 
     async with ClaudeSDKClient(options=options) as client:
         await client.query(prompt)
 
         async for msg in client.receive_response():
-            # Handle tool calls from assistant
             if isinstance(msg, AssistantMessage):
                 for block in msg.content:
-                    if isinstance(block, ToolUseBlock) and block.name not in ("Agent", "Task"):
-                        # Execute our custom tool
-                        result = await handle_tool_call(
-                            block.name,
-                            block.input,
-                            session_id,
-                            request_id,
-                            file_path,
-                        )
-                        await client.send_tool_result(block.id, result)
-
                     if isinstance(block, TextBlock):
                         log.info("Agent text: %s", block.text[:100])
                     elif isinstance(block, ToolUseBlock):
                         log.info("Agent tool_use: %s", block.name)
-
-            elif isinstance(msg, UserMessage):
-                for block in msg.content:
-                    if isinstance(block, ToolResultBlock):
-                        log.info("Tool result received")
 
             elif isinstance(msg, ResultMessage):
                 log.info(
@@ -134,14 +156,28 @@ async def _emit_visualization_if_ready(
     event_callback: EventCallback,
 ) -> None:
     """If final.json exists, emit a visualization event."""
-    from app.services.file_manager import read_artifact
+    from app.services.file_manager import read_artifact, write_artifact
 
     try:
         content = read_artifact(f"runs/{session_id}/{request_id}", "final.json")
         data = json.loads(content)
         await event_callback({"event": "visualization", "data": data})
     except (FileNotFoundError, json.JSONDecodeError):
-        log.info("No valid final.json found after agent run")
+        analysis_results = get_run_analysis_results(session_id, request_id)
+        if analysis_results:
+            from app.services.result_transformer import assemble_final_json
+
+            data = assemble_final_json(
+                session_id,
+                request_id,
+                analysis_results,
+                {"assembled_by": "backend_fallback"},
+            )
+            write_artifact(f"runs/{session_id}/{request_id}", "final.json", json.dumps(data, indent=2))
+            await event_callback({"event": "visualization", "data": data})
+            log.info("Assembled final.json from collected run_r_analysis results")
+        else:
+            log.info("No valid final.json found after agent run")
 
     # Check for report.Rmd and emit artifact event
     try:

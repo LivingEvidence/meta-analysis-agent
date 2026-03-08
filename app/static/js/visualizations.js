@@ -14,21 +14,22 @@ const Visualizations = {
     renderAll(finalJson) {
         const visPanel = document.getElementById('vis-panel');
         visPanel.classList.remove('hidden');
+        const normalized = this._normalizeFinalJson(finalJson);
 
         // Build outcome tabs
         const tabs = document.getElementById('vis-tabs');
         tabs.innerHTML = '';
-        finalJson.outcomes.forEach((outcome, i) => {
+        normalized.outcomes.forEach((outcome, i) => {
             const btn = document.createElement('button');
             btn.textContent = outcome.outcome_name;
             btn.title = outcome.full_name;
-            btn.onclick = () => this._selectOutcomeTab(outcome, i, finalJson);
+            btn.onclick = () => this._selectOutcomeTab(outcome, i, normalized);
             tabs.appendChild(btn);
         });
 
         // Show first outcome
-        if (finalJson.outcomes.length > 0) {
-            this._selectOutcomeTab(finalJson.outcomes[0], 0, finalJson);
+        if (normalized.outcomes.length > 0) {
+            this._selectOutcomeTab(normalized.outcomes[0], 0, normalized);
         }
 
         // Close button
@@ -91,7 +92,7 @@ const Visualizations = {
         const het = outcome.heterogeneity;
         const isRatio = outcome.is_ratio;
 
-        if (studies.length === 0) {
+        if (studies.length === 0 || !pooled) {
             container.innerHTML = '<p class="text-muted">No study data available.</p>';
             return;
         }
@@ -269,7 +270,7 @@ const Visualizations = {
         const pooled = outcome.pooled_random;
         const isRatio = outcome.is_ratio;
 
-        if (studies.length === 0) {
+        if (studies.length === 0 || !pooled) {
             container.innerHTML = '<p class="text-muted">No study data available.</p>';
             return;
         }
@@ -379,7 +380,7 @@ const Visualizations = {
         const pooled = outcome.pooled_random;
         const isRatio = outcome.is_ratio;
 
-        if (loo.length === 0) {
+        if (loo.length === 0 || !pooled) {
             container.innerHTML = '<p class="text-muted">No leave-one-out data available.</p>';
             return;
         }
@@ -485,6 +486,11 @@ const Visualizations = {
         const het = outcome.heterogeneity;
         const bias = outcome.publication_bias;
 
+        if (!pooled) {
+            container.innerHTML = '<p class="text-muted">No pooled estimate available.</p>';
+            return;
+        }
+
         const pClass = (p) => p < 0.05 ? 'stat-significant' : 'stat-not-significant';
         const hetClass = (i2) => i2 < 25 ? 'het-low' : (i2 < 75 ? 'het-moderate' : 'het-high');
         const hetLabel = (i2) => i2 < 25 ? 'Low' : (i2 < 50 ? 'Moderate' : (i2 < 75 ? 'Substantial' : 'Considerable'));
@@ -526,8 +532,8 @@ const Visualizations = {
                     <span class="${bias.p_value < 0.1 ? 'stat-significant' : 'stat-not-significant'}">
                     p = ${bias.p_value.toFixed(3)}</span></td></tr>`;
             }
-            if (bias.note) {
-                html += `<tr><td colspan="2" class="text-muted">${bias.note}</td></tr>`;
+            if (bias.note || bias.interpretation) {
+                html += `<tr><td colspan="2" class="text-muted">${bias.note || bias.interpretation}</td></tr>`;
             }
         }
 
@@ -535,7 +541,11 @@ const Visualizations = {
         html += '<tr><th colspan="2">Study Information</th></tr>';
         html += `<tr><td>Number of studies</td><td>${outcome.n_studies}</td></tr>`;
         html += `<tr><td>Effect measure</td><td>${outcome.measure} (${outcome.is_ratio ? 'ratio' : 'absolute'} scale)</td></tr>`;
-        html += `<tr><td>Data type</td><td>${outcome.data_type === 'pre' ? 'Pre-calculated' : 'Raw event counts'}</td></tr>`;
+        html += `<tr><td>Data type</td><td>${
+            outcome.data_type === 'pre'
+                ? 'Pre-calculated'
+                : (outcome.data_type === 'raw' ? 'Raw event counts' : 'Not provided')
+        }</td></tr>`;
 
         html += '</table>';
 
@@ -578,6 +588,33 @@ const Visualizations = {
         html += `Weight: ${study.weight.toFixed(1)}%`;
         if (study.se) html += `<br>SE: ${study.se.toFixed(4)}`;
         return html;
+    },
+
+    _normalizeFinalJson(finalJson) {
+        const outcomes = (finalJson.outcomes || []).map((outcome) => this._normalizeOutcome(outcome));
+        return { ...finalJson, outcomes };
+    },
+
+    _normalizeOutcome(outcome) {
+        const measure = outcome.measure || '';
+        const isRatio = outcome.is_ratio ?? ['HR', 'RR', 'OR'].includes(measure);
+        const pooled = outcome.pooled_random || outcome.pooled_estimate || null;
+        const interpretation =
+            outcome.interpretation ||
+            outcome.pooled_estimate?.interpretation ||
+            outcome.heterogeneity?.interpretation ||
+            outcome.publication_bias?.interpretation ||
+            '';
+
+        return {
+            ...outcome,
+            pooled_random: pooled,
+            pooled_fixed: outcome.pooled_fixed || null,
+            is_ratio: isRatio,
+            data_type: outcome.data_type || null,
+            leave_one_out: outcome.leave_one_out || [],
+            interpretation,
+        };
     },
 
     _logTicks(domain) {
