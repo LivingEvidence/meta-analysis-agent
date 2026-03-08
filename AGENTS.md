@@ -1,11 +1,11 @@
 # Meta-Analysis Visualization Agent
 
 ## Project Overview
-Agent-assisted meta-analysis system for systematic reviews. Researchers upload Excel data, submit natural-language requests, and Codex subagents orchestrate R-based meta-analyses in Docker, producing interactive D3.js visualizations.
+Agent-assisted meta-analysis system for systematic reviews. Researchers upload Excel data, submit natural-language requests, and Codex skills drive R-based meta-analyses in Docker, producing interactive D3.js visualizations.
 
 ## Tech Stack
 - Backend: FastAPI (Python 3.11+)
-- Agent: Codex Agent SDK with subagents
+- Agent: Codex Agent SDK with project skills
 - Statistics: R via Docker (meta, metafor packages)
 - Frontend: Vanilla JS + D3.js (CDN), single-page app
 - Theme: Yale/Mayo blue (#00356b)

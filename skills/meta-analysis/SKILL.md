@@ -78,7 +78,7 @@ the key findings:
 
 ### Step 5: Compile Output
 
-Use the writer subagent to:
+Compile the final artifacts directly as part of this skill:
 1. Assemble all outcome results into `final.json`
 2. Generate `report.Rmd` for reproducibility
 

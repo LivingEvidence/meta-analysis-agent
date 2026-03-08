@@ -213,14 +213,6 @@ const App = {
                 }
                 break;
 
-            case 'subagent_start':
-                Components.addSubagentIndicator(data.name, data.task || '');
-                break;
-
-            case 'subagent_end':
-                // Subagent completed — nothing specific to do
-                break;
-
             case 'visualization':
                 this.state.finalJson = data;
                 Visualizations.renderAll(data);

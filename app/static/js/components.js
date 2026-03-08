@@ -125,23 +125,6 @@ const Components = {
     },
 
     /**
-     * Add a subagent indicator.
-     */
-    addSubagentIndicator(name, task) {
-        const messages = document.getElementById('messages');
-        const indicator = document.createElement('div');
-        indicator.className = 'subagent-indicator';
-        indicator.dataset.agent = name;
-        indicator.innerHTML = `
-            <span class="agent-name">${this._escapeHtml(name)}</span>
-            <span class="agent-task">${this._escapeHtml(task.substring(0, 120))}${task.length > 120 ? '...' : ''}</span>
-        `;
-        messages.appendChild(indicator);
-        this._scrollToBottom();
-        return indicator;
-    },
-
-    /**
      * Add a thinking/reasoning block (collapsible).
      */
     addThinkingBlock(text) {

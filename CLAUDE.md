@@ -1,11 +1,11 @@
 # Meta-Analysis Visualization Agent
 
 ## Project Overview
-Agent-assisted meta-analysis system for systematic reviews. Researchers upload Excel data, submit natural-language requests, and Claude subagents orchestrate R-based meta-analyses in Docker, producing interactive D3.js visualizations.
+Agent-assisted meta-analysis system for systematic reviews. Researchers upload Excel data, submit natural-language requests, and Claude Code skills drive R-based meta-analyses in Docker, producing interactive D3.js visualizations.
 
 ## Tech Stack
 - Backend: FastAPI (Python 3.11+)
-- Agent: Claude Agent SDK with subagents
+- Agent: Claude Agent SDK with project skills
 - Statistics: R via Docker (meta, metafor packages)
 - Frontend: Vanilla JS + D3.js (CDN), single-page app
 - Theme: Yale/Mayo blue (#00356b)
@@ -24,7 +24,7 @@ uv run uvicorn app.main:app --reload
 ```
 
 ## Conventions
-- All agent tools are built at runtime scoped to `{session_id}/{request_id}`
-- Agents use ONLY custom MCP tools (doc_writer, doc_reader, run_r_analysis, read_outcomes)
+- The backend should keep agent configuration minimal and rely on project skills for workflow logic
+- Claude Code runs with `cwd` at the project root so project settings and skills can be discovered
 - R scripts output JSON + PNG + PDF
 - SSE streaming for real-time agent updates to frontend

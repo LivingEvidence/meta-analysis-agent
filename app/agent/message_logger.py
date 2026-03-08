@@ -11,7 +11,7 @@ def classify_message(msg: Any) -> list[dict]:
     """Convert a Claude Agent SDK message into SSE-compatible event dicts.
 
     Inspects the message type and content blocks to produce events like
-    agent_text, tool_use, subagent_start, done, etc.
+    agent_text, tool_use, tool_result, and result.
     """
     events = []
     msg_type = type(msg).__name__
@@ -22,28 +22,15 @@ def classify_message(msg: Any) -> list[dict]:
             if block_type == "text":
                 events.append({"event": "agent_text", "data": {"text": block.text}})
             elif block_type == "tool_use":
-                if block.name in ("Agent", "Task"):
-                    # Subagent invocation
-                    input_data = block.input if isinstance(block.input, dict) else {}
-                    events.append(
-                        {
-                            "event": "subagent_start",
-                            "data": {
-                                "name": input_data.get("subagent_type", input_data.get("description", "unknown")),
-                                "task": str(input_data.get("prompt", ""))[:300],
-                            },
-                        }
-                    )
-                else:
-                    events.append(
-                        {
-                            "event": "tool_use",
-                            "data": {
-                                "tool": block.name,
-                                "input": _safe_serialize(block.input),
-                            },
-                        }
-                    )
+                events.append(
+                    {
+                        "event": "tool_use",
+                        "data": {
+                            "tool": block.name,
+                            "input": _safe_serialize(block.input),
+                        },
+                    }
+                )
 
     elif msg_type == "UserMessage":
         for block in getattr(msg, "content", []):

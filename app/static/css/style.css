@@ -218,7 +218,7 @@ html, body {
     padding: 0;
 }
 
-/* === Tool/Subagent Indicators === */
+/* === Tool Indicators === */
 .tool-indicator {
     display: inline-flex;
     align-items: center;
@@ -253,26 +253,6 @@ html, body {
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
-}
-
-.subagent-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    margin: 6px 0;
-    background: linear-gradient(135deg, #f0f4ff 0%, #e8edf8 100%);
-    border: 1px solid var(--border-color);
-    border-left: 3px solid var(--primary-light);
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
-.subagent-indicator .agent-name {
-    font-weight: 600;
-    color: var(--primary-blue);
-    text-transform: capitalize;
 }
 
 /* === Thinking/Reasoning Blocks === */
