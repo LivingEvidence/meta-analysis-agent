@@ -532,8 +532,8 @@ const Visualizations = {
                     <span class="${bias.p_value < 0.1 ? 'stat-significant' : 'stat-not-significant'}">
                     p = ${bias.p_value.toFixed(3)}</span></td></tr>`;
             }
-            if (bias.note || bias.interpretation) {
-                html += `<tr><td colspan="2" class="text-muted">${bias.note || bias.interpretation}</td></tr>`;
+            if (bias.note) {
+                html += `<tr><td colspan="2" class="text-muted">${bias.note}</td></tr>`;
             }
         }
 
@@ -598,7 +598,79 @@ const Visualizations = {
     _normalizeOutcome(outcome) {
         const measure = outcome.measure || '';
         const isRatio = outcome.is_ratio ?? ['HR', 'RR', 'OR'].includes(measure);
-        const pooled = outcome.pooled_random || outcome.pooled_estimate || null;
+
+        // Normalise a pooled estimate object: coerce all numerics, tolerate alternative field names
+        const normalizePooled = (p) => {
+            if (!p || typeof p !== 'object') return null;
+            const effect = Number(p.effect ?? p.te ?? p.estimate);
+            if (!isFinite(effect)) return null; // unusable without a valid point estimate
+            return {
+                ...p,
+                effect,
+                ci_lower: Number(p.ci_lower ?? p.lower ?? p.lower_ci),
+                ci_upper: Number(p.ci_upper ?? p.upper ?? p.upper_ci),
+                p_value:  Number(p.p_value  ?? p.pval  ?? p.p),
+                z_value:  p.z_value != null ? Number(p.z_value) : null,
+            };
+        };
+
+        // Accept several field-name conventions for the random-effects estimate
+        const pooledRaw = outcome.pooled_random
+            || outcome.pooled_estimate
+            || outcome.random_effects
+            || null;
+
+        // Normalise studies array: coerce numerics, drop rows without a study label
+        const studies = (outcome.studies || [])
+            .filter(s => s && (s.study || s.studlab || s.name))
+            .map(s => ({
+                ...s,
+                study:    s.study || s.studlab || s.name || '',
+                effect:   Number(s.effect   ?? s.te  ?? s.estimate ?? 0),
+                ci_lower: Number(s.ci_lower ?? s.lower ?? s.lower_ci ?? 0),
+                ci_upper: Number(s.ci_upper ?? s.upper ?? s.upper_ci ?? 0),
+                weight:   Number(s.weight   ?? s.w    ?? 0),
+                se:       s.se != null ? Number(s.se) : null,
+            }));
+
+        // Normalise heterogeneity: tolerate missing or differently-named sub-fields
+        const het = (() => {
+            const h = outcome.heterogeneity;
+            if (!h || typeof h !== 'object') return null;
+            return {
+                ...h,
+                i2:               Number(h.i2          ?? h.I2     ?? 0),
+                tau2:             Number(h.tau2         ?? h.tau_sq ?? 0),
+                q_statistic:      Number(h.q_statistic  ?? h.Q      ?? 0),
+                q_df:             Number(h.q_df         ?? h.df     ?? 0),
+                q_pvalue:         Number(h.q_pvalue     ?? h.pval_Q ?? 1),
+                prediction_lower: h.prediction_lower != null ? Number(h.prediction_lower) : null,
+                prediction_upper: h.prediction_upper != null ? Number(h.prediction_upper) : null,
+            };
+        })();
+
+        // Normalise publication bias
+        const bias = (() => {
+            const b = outcome.publication_bias;
+            if (!b || typeof b !== 'object') return null;
+            return {
+                method:    b.method    || 'Egger',
+                statistic: b.statistic != null ? Number(b.statistic) : null,
+                p_value:   b.p_value   != null ? Number(b.p_value)   : null,
+                note:      b.note || b.interpretation || null,
+            };
+        })();
+
+        // Normalise leave-one-out: tolerate alternative field names for excluded study
+        const loo = (outcome.leave_one_out || [])
+            .filter(l => l && (l.excluded_study || l.study || l.omitted_study))
+            .map(l => ({
+                excluded_study: l.excluded_study || l.study || l.omitted_study || '',
+                effect:   Number(l.effect   ?? l.te    ?? 0),
+                ci_lower: Number(l.ci_lower ?? l.lower ?? 0),
+                ci_upper: Number(l.ci_upper ?? l.upper ?? 0),
+            }));
+
         const interpretation =
             outcome.interpretation ||
             outcome.pooled_estimate?.interpretation ||
@@ -608,11 +680,14 @@ const Visualizations = {
 
         return {
             ...outcome,
-            pooled_random: pooled,
-            pooled_fixed: outcome.pooled_fixed || null,
-            is_ratio: isRatio,
-            data_type: outcome.data_type || null,
-            leave_one_out: outcome.leave_one_out || [],
+            studies,
+            is_ratio:         isRatio,
+            pooled_random:    normalizePooled(pooledRaw),
+            pooled_fixed:     normalizePooled(outcome.pooled_fixed || null),
+            heterogeneity:    het,
+            publication_bias: bias,
+            leave_one_out:    loo,
+            data_type:        outcome.data_type || null,
             interpretation,
         };
     },

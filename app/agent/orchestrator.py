@@ -1,8 +1,8 @@
 """Agent orchestration using the Claude Agent SDK.
 
-The backend keeps SDK setup minimal and defers the actual workflow to the
-project skill. It only passes run context into Claude Code and forwards SDK
-events to the frontend.
+The backend is intentionally minimal. It provides run context (paths, IDs)
+and lets the project skill drive the entire workflow — including writing R
+code, running it in Docker, debugging errors, and assembling final.json.
 """
 
 import json
@@ -63,15 +63,17 @@ async def run_agent(
     session_id: str,
     request_id: str,
     file_path: str | None,
-    outcomes: list[dict] | None,
     event_callback: EventCallback,
 ) -> None:
     """Run the skill-driven meta-analysis agent and stream events via callback."""
     project_root = Path(__file__).resolve().parents[2]
-    prompt = _compose_prompt(message, file_path, outcomes)
+    run_dir = project_root / "runs" / session_id / request_id
+    prompt = _compose_prompt(message, file_path, str(run_dir))
 
     options = ClaudeAgentOptions(
-        allowed_tools=["Skill", "Read"],
+        # The agent needs Bash to run docker commands, Write to save R scripts,
+        # Read to inspect files, and Skill to load the meta-analysis skill.
+        allowed_tools=["Bash", "Write", "Read", "Skill"],
         max_turns=settings.MAX_AGENT_TURNS,
         model=settings.AGENT_MODEL,
         cwd=str(project_root),
@@ -115,19 +117,22 @@ async def _emit_visualization_if_ready(
     request_id: str,
     event_callback: EventCallback,
 ) -> None:
-    """If final.json exists, emit a visualization event."""
-    from app.services.file_manager import read_artifact, write_artifact
+    """If final.json exists in the run directory, emit a visualization event."""
+    run_dir = Path("runs") / session_id / request_id
 
-    try:
-        content = read_artifact(f"runs/{session_id}/{request_id}", "final.json")
-        data = json.loads(content)
-        await event_callback({"event": "visualization", "data": data})
-    except (FileNotFoundError, json.JSONDecodeError):
-        log.info("No valid final.json found after agent run")
+    final_json_path = run_dir / "final.json"
+    if final_json_path.exists():
+        try:
+            data = json.loads(final_json_path.read_text())
+            await event_callback({"event": "visualization", "data": data})
+        except json.JSONDecodeError:
+            log.warning("final.json exists but is not valid JSON: %s", final_json_path)
+    else:
+        log.info("No final.json found after agent run at %s", final_json_path)
 
     # Check for report.Rmd and emit artifact event
-    try:
-        read_artifact(f"runs/{session_id}/{request_id}", "report.Rmd")
+    report_path = run_dir / "report.Rmd"
+    if report_path.exists():
         await event_callback(
             {
                 "event": "artifact",
@@ -137,29 +142,35 @@ async def _emit_visualization_if_ready(
                 },
             }
         )
-    except FileNotFoundError:
-        pass
 
 
 def _compose_prompt(
     message: str,
     file_path: str | None,
-    outcomes: list[dict] | None,
+    run_dir: str,
 ) -> str:
-    """Compose a small prompt and let the project skill drive execution."""
+    """Compose the agent prompt with run context only.
+
+    The skill drives all workflow logic. The prompt just provides paths and IDs
+    so the agent knows where to write outputs.
+    """
     parts = [
         "Use the project's `meta-analysis` skill for this request.",
         "",
         f"User request: {message}",
+        "",
+        "Run context:",
+        f"  Output directory (absolute): {run_dir}",
+        f"  Docker image: {settings.DOCKER_IMAGE_NAME}",
     ]
 
     if file_path:
-        parts.extend(["", f"Uploaded Excel file: {file_path}"])
+        parts.extend(["", f"  Uploaded Excel file (absolute): {file_path}"])
 
-    if outcomes:
-        parts.extend(["", "Available outcomes:"])
-        for o in outcomes:
-            parts.append(f"  - {o.get('name')}: {o.get('full_name')} ({o.get('measure')}, {o.get('data_type')})")
+    parts.extend([
+        "",
+        "Write final.json to the output directory when the analysis is complete.",
+        "The output directory and all required subdirectories already exist.",
+    ])
 
     return "\n".join(parts)
-

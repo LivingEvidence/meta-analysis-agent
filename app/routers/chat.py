@@ -56,7 +56,6 @@ async def chat(req: ChatRequest):
                         session_id=session_id,
                         request_id=request_id,
                         file_path=file_path,
-                        outcomes=None,
                         event_callback=queue_callback,
                     )
                 except Exception as e:
