@@ -11,7 +11,7 @@
 
 library(meta)
 
-plot_height <- max(6, nrow(dat) * 0.5 + 3)
+plot_height <- max(6, nrow(dat) + 3)
 
 # --- Forest Plot ---
 pdf(file.path(output_dir, "forest_plot.pdf"), width = 12, height = plot_height)
@@ -26,7 +26,7 @@ forest(m,
 dev.off()
 
 png(file.path(output_dir, "forest_plot.png"),
-    width = 1200, height = max(600, plot_height * 100), res = 100)
+    width = 1200, height = plot_height * 100, res = 100)
 forest(m,
        sortvar   = if ("year_num" %in% names(dat)) dat$year_num else NULL,
        prediction  = TRUE,
@@ -54,7 +54,7 @@ forest(loo, main = paste(full_name, "- Leave-One-Out"))
 dev.off()
 
 png(file.path(output_dir, "sensitivity_plot.png"),
-    width = 1000, height = max(600, plot_height * 100), res = 100)
+    width = 1000, height = plot_height * 100, res = 100)
 forest(loo, main = paste(full_name, "- Leave-One-Out"))
 dev.off()
 
