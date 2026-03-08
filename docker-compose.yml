@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  r-env:
+    build:
+      context: ./skills/meta-analysis/scripts/docker
+    image: meta-analysis-r
+    # This service is used on-demand via docker run, not as a long-running container.
+    # Build it with: docker compose build r-env
+    profiles:
+      - build-only

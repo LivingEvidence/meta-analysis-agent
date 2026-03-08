@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta-Analysis Visualization Agent</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Menu Bar -->
+        <header id="menu-bar">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3h18v18H3z"/>
+                    <path d="M7 14l3-6 3 4 4-8"/>
+                </svg>
+                <span>Meta-Analysis Agent</span>
+            </div>
+            <div class="menu-actions">
+                <button id="btn-upload" class="btn btn-secondary" title="Upload Excel file">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="17,8 12,3 7,8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Upload Data
+                </button>
+                <button id="btn-download-rmd" class="btn btn-secondary" title="Download R Markdown" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Report
+                </button>
+                <button id="btn-download-json" class="btn btn-secondary" title="Download Results JSON" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    JSON
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div id="main-content">
+            <!-- Chat Dialog Area -->
+            <main id="chat-area">
+                <div id="messages">
+                    <div class="message system-message">
+                        <div class="message-content">
+                            <p>Welcome! Upload a clinical trial Excel file and ask me to analyze it.</p>
+                            <p class="text-muted">I can perform pairwise meta-analyses, generate forest plots, funnel plots, sensitivity analyses, and publication bias tests.</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Visualization Panel -->
+            <aside id="vis-panel" class="hidden">
+                <div id="vis-header">
+                    <h3>Visualizations</h3>
+                    <button id="btn-close-vis" class="btn-icon" title="Close panel">&times;</button>
+                </div>
+                <div id="vis-tabs"></div>
+                <div id="vis-sub-tabs"></div>
+                <div id="vis-content"></div>
+            </aside>
+        </div>
+
+        <!-- Chat Input (sticky bottom) -->
+        <footer id="chat-input-area">
+            <div id="upload-status" class="hidden"></div>
+            <form id="chat-form">
+                <textarea id="chat-input" placeholder="Ask about your meta-analysis data..." rows="2"></textarea>
+                <button type="submit" id="btn-send" class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </form>
+        </footer>
+
+        <!-- Hidden file input -->
+        <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden">
+    </div>
+
+    <script src="/js/components.js"></script>
+    <script src="/js/visualizations.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
