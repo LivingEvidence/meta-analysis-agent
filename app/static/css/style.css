@@ -250,6 +250,21 @@ html, body {
     background: var(--success);
 }
 
+.tool-indicator .tool-label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.tool-indicator .tool-detail {
+    color: var(--text-muted);
+    font-size: 11px;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }

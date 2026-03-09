@@ -195,7 +195,9 @@ const App = {
                 break;
 
             case 'agent_text':
+                // Complete any pending tool indicator before starting/continuing text
                 Components.removeLoadingDots();
+                Components.completeFirstRunningIndicator();
                 Components.appendToAgentMessage(data.text);
                 break;
 
@@ -204,18 +206,22 @@ const App = {
                 break;
 
             case 'tool_use':
+                // Close the current text bubble before showing the tool indicator,
+                // so text and tool calls are rendered in order rather than merged.
+                Components.finalizeAgentMessage();
                 Components.addToolIndicator(data.tool, data.input);
                 break;
 
             case 'tool_result':
-                if (data.tool) {
-                    Components.completeToolIndicator(data.tool);
-                }
+                // tool_result blocks don't reliably carry the tool name in the SDK,
+                // so completion is handled by the next agent_text event instead.
                 break;
 
             case 'visualization':
                 this.state.finalJson = data;
                 Visualizations.renderAll(data);
+                // Show a text summary of the key findings in the chat
+                Components.addResultSummary(data);
                 if (this.state.sessionId && this.state.requestId) {
                     Components.enableDownloads(this.state.sessionId, this.state.requestId);
                 }
@@ -229,7 +235,8 @@ const App = {
 
             case 'result':
                 Components.removeLoadingDots();
-                if (data.result) {
+                // ResultMessage carries the final agent reply; show it if non-empty
+                if (data.result && data.result.trim()) {
                     Components.appendToAgentMessage(data.result);
                     Components.finalizeAgentMessage();
                 }
@@ -257,11 +264,7 @@ const App = {
     _updateSendButton() {
         const btn = document.getElementById('btn-send');
         btn.disabled = this.state.isProcessing;
-        if (this.state.isProcessing) {
-            btn.style.opacity = '0.5';
-        } else {
-            btn.style.opacity = '1';
-        }
+        btn.style.opacity = this.state.isProcessing ? '0.5' : '1';
     },
 };
 

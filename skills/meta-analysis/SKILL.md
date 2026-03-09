@@ -132,7 +132,30 @@ Common errors and fixes:
 After all outcomes are processed, assemble `final.json` in the output directory.
 Follow the schema in `references/final_json_schema.md` **exactly**.
 
+**Read each outcome's `results.json` file** (at `figures/<outcome-name>/results.json`)
+and use its full content as the outcome object. Do NOT reconstruct outcome data from
+memory or re-derive statistics — the `results.json` already has all required fields.
+Merging the files is the correct approach:
+
+```python
+import json, pathlib, datetime
+
+outcomes = []
+for results_file in sorted(pathlib.Path(output_dir).glob("figures/*/results.json")):
+    outcomes.append(json.loads(results_file.read_text()))
+
+final = {
+    "session_id": "<from run context>",
+    "request_id": "<from run context>",
+    "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+    "outcomes": outcomes,
+    "metadata": {}
+}
+pathlib.Path(output_dir, "final.json").write_text(json.dumps(final, indent=2))
+```
+
 Key points:
+- The `studies` array (required for forest/funnel plots) must come from `results.json` — it is not reconstructed manually
 - All effect estimates (`effect`, `ci_lower`, `ci_upper`) must be on the **natural scale** for ratio measures — i.e. HR=0.72, not log(HR)=-0.33
 - Include `session_id` and `request_id` from the run context provided in the prompt
 - Outcomes that were skipped (< 2 studies) should still appear with `"studies": []` and `"pooled_random": null`, with an `"interpretation"` explaining why
